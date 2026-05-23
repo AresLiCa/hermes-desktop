@@ -60,6 +60,7 @@ jobs:
             echo "Real release: publish will run if tag does not exist."
           fi
 
+  # macOS build job — needs CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY, ASC_KEY_ID, ASC_ISSUER_ID secrets
   release_mac:
     name: Build macOS (${{ matrix.arch }})
     needs: prepare
