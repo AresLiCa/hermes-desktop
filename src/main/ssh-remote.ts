@@ -121,6 +121,13 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\"'\"'")}'`;
 }
 
+function shellQuoteBashC(value: string): string {
+  // Quote a value for use as a positional argument to bash -c '...' arg0 arg1 ...
+  // The arguments are separated by spaces and NOT inside the single-quoted script,
+  // so we use double-quoting with escaping for shell-special characters.
+  return `"${value.replace(/["$`\\!]/g, '\\$&')}"`;
+}
+
 function normalizeRemotePath(remotePath: string): string {
   return remotePath.replace(/^~\//, "$HOME/");
 }
@@ -1889,15 +1896,20 @@ export async function sshListCachedSessions(
 // non-installer deployments.
 function buildRemoteHermesCmd(args: string[], extraShell = ""): string {
   const candidates = [
+    "$HOME/DockerProj/hermes-agent/.venv/bin/hermes",
     "$HOME/hermes-agent/.venv/bin/hermes",
     "$HOME/.hermes/hermes-agent/.venv/bin/hermes",
     "/opt/hermes/hermes-agent/.venv/bin/hermes",
   ];
-  const quotedArgs = args.map((a) => shellQuote(a)).join(" ");
   const probe = candidates
-    .map((p) => `[ -x ${p} ] && exec ${p} ${quotedArgs}${extraShell}`)
+    .map((p) => `[ -x ${p} ] && exec ${p} "$@"${extraShell}`)
     .join("; ");
-  return `bash -c '${probe}; command -v hermes >/dev/null && exec hermes ${quotedArgs}${extraShell}; echo "ERR: hermes CLI not found on remote PATH or in any known venv location" >&2; exit 1'`;
+  return `bash -c '
+${probe};
+command -v hermes >/dev/null 2>&1 && exec hermes "$@"${extraShell};
+echo "ERR: hermes CLI not found on remote PATH or in any known venv location" >&2;
+exit 1
+' _ ${args.map(a => shellQuoteBashC(a)).join(" ")}`;
 }
 
 export async function sshRunDoctor(config: SshConfig): Promise<string> {
