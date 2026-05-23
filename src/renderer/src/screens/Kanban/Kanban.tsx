@@ -172,7 +172,7 @@ function Kanban({ profile, visible }: KanbanProps): React.JSX.Element {
   const [newPriority, setNewPriority] = useState("0");
   const [newWorkspace, setNewWorkspace] = useState("scratch");
   const [newWorkspaceDir, setNewWorkspaceDir] = useState("");
-  const [newTriage, setNewTriage] = useState(false);
+  const [newTriage, setNewTriage] = useState(true);
 
   // New board form
   const [newBoardSlug, setNewBoardSlug] = useState("");
