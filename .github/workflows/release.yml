@@ -68,7 +68,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -102,118 +102,10 @@ jobs:
             dist/*.zip
             dist/*.blockmap
 
-  release_linux:
-    name: Build Linux
-    needs: prepare
-    if: needs.prepare.outputs.tag_exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build app
-        env:
-          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
-          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
-        run: npm run build
-
-      - name: Install rpmbuild
-        run: sudo apt-get update && sudo apt-get install -y rpm
-
-      - name: Package Linux artifacts
-        run: npx electron-builder --linux AppImage deb rpm --publish never
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.rpm
-            dist/latest-linux.yml
-
-  release_windows:
-    name: Build Windows
-    needs: prepare
-    if: needs.prepare.outputs.tag_exists == 'false'
-    runs-on: windows-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build app
-        env:
-          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
-          VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
-        run: npm run build
-
-      - name: Package Windows artifacts
-        run: npx electron-builder --win nsis portable --x64 --publish never
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-artifacts
-          path: |
-            dist/*.exe
-            dist/*.exe.blockmap
-            dist/latest.yml
-
-  generate_winget:
-    name: Generate winget manifests
-    needs: [prepare, release_windows]
-    if: needs.prepare.outputs.tag_exists == 'false'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Download Windows installer artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-artifacts
-          path: dist/
-
-      - name: Generate winget manifests
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          PUBLISH_OWNER: AresLiCa
-        run: node scripts/generate-winget-manifests.mjs
-
-      - name: Upload winget manifests artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: winget-manifests-${{ needs.prepare.outputs.version }}
-          path: dist/winget/
-
   publish:
     name: Publish Release
     needs:
-      [prepare, release_mac, release_linux, release_windows, generate_winget]
+      [prepare, release_mac]
     if: needs.prepare.outputs.is_dry_run == 'false' && needs.prepare.outputs.tag_exists == 'false'
     runs-on: ubuntu-latest
     steps:
@@ -257,13 +149,9 @@ jobs:
               return a.localeCompare(b);
             });
 
-          if (
-            zipNames.length < 2 ||
-            !zipNames.some((name) => name.includes("-x64-")) ||
-            !zipNames.some((name) => name.includes("-arm64-"))
-          ) {
+          if (zipNames.length < 1) {
             throw new Error(
-              `Expected x64 and arm64 macOS zips, found: ${zipNames.join(", ")}`,
+              `Expected at least one macOS zip, found: ${zipNames.join(", ")}`,
             );
           }
 
@@ -306,11 +194,5 @@ jobs:
           files: |
             artifacts/*.dmg
             artifacts/*.zip
-            artifacts/*.AppImage
-            artifacts/*.deb
-            artifacts/*.rpm
-            artifacts/*.exe
             artifacts/*.blockmap
-            artifacts/latest.yml
-            artifacts/latest-linux.yml
             artifacts/latest-mac.yml
